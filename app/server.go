@@ -41,18 +41,42 @@ func main() {
 			fmt.Println("Error reading request:", err.Error())
 			os.Exit(1)
 		}
-		fmt.Println("Received request:\n", string(request[:readBytes]))
-		fmt.Printf("Split request using empty spaces: %s\n", strings.Split(string(request[:readBytes]), " "))
+		fmt.Println("Received request:", string(request[:readBytes]))
 
 		// Get path and respond with 200 OK or 404 Not Found if path is "/"
 		path := strings.Split(string(request[:readBytes]), " ")[1]
+
+		requestHeaders := strings.Split(string(request[:readBytes]), "\r\n")
+		fmt.Println("Request strings:", requestHeaders, len(requestHeaders))
+		for str := range requestHeaders {
+			fmt.Println(requestHeaders[str])
+		}
+
+		const okStatusLine = "HTTP/1.1 200 OK\r\n"
 		if path == "/" {
-			conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+			headers := "\r\n"
+			conn.Write([]byte(okStatusLine + headers))
 
 		} else if strings.HasPrefix(path, "/echo") {
 			body := strings.Split(path[1:], "/")[1] //todo: validate path is /echo/<body>
 			fmt.Println("Echoing body:", body, len(body))
 			response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
+			conn.Write([]byte(response))
+
+		} else if strings.HasPrefix(path, "/user-agent") {
+			headers := requestHeaders[1:4]
+			var userAgentHeader string
+			for _, header := range headers {
+				if strings.HasPrefix(header, "User-Agent") { //todo: validate header is User-Agent
+					userAgentHeader = header
+					break
+				}
+			}
+			body := strings.Split(userAgentHeader, ": ")[1]
+			fmt.Println("Echoing body:", body)
+
+			responseHeadersAndBody := fmt.Sprintf("Content-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
+			response := okStatusLine + responseHeadersAndBody
 			conn.Write([]byte(response))
 
 		} else {
