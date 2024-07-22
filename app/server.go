@@ -22,29 +22,26 @@ func handleConnection(conn net.Conn) {
 		fmt.Println("Received EOF: Connection closed by client. Exiting...")
 		return
 	}
+	fmt.Println("Received request:", string(request[:readBytes]))
 
 	// Get path and respond with 200 OK or 404 Not Found if path is "/"
-	fmt.Println("Received request:", string(request[:readBytes]))
-	path := strings.Split(string(request[:readBytes]), " ")[1]
-
-	requestHeaders := strings.Split(string(request[:readBytes]), "\r\n")
-	fmt.Println("Request strings split by \\r\\n:", requestHeaders, len(requestHeaders))
-	for str := range requestHeaders {
-		fmt.Println(requestHeaders[str])
-	}
-
 	const okStatusLine = "HTTP/1.1 200 OK\r\n"
+	path := strings.Split(string(request[:readBytes]), " ")[1]
 	if path == "/" {
 		headers := "\r\n"
+		fmt.Println("Sending response:", okStatusLine+headers)
 		conn.Write([]byte(okStatusLine + headers))
 
 	} else if strings.HasPrefix(path, "/echo") {
 		body := strings.Split(path[1:], "/")[1] //todo: validate path is /echo/<body>
 		fmt.Println("Echoing body:", body, len(body))
-		response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
+		response := fmt.Sprintf(okStatusLine+"Content-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
 		conn.Write([]byte(response))
 
 	} else if strings.HasPrefix(path, "/user-agent") {
+		requestHeaders := strings.Split(string(request[:readBytes]), "\r\n")
+		fmt.Println("Request strings split by \\r\\n:", requestHeaders, len(requestHeaders))
+
 		headers := requestHeaders[1:4]
 		var userAgentHeader string
 		for _, header := range headers {
@@ -55,7 +52,6 @@ func handleConnection(conn net.Conn) {
 		}
 		body := strings.Split(userAgentHeader, ": ")[1]
 		fmt.Println("Echoing body:", body)
-
 		responseHeadersAndBody := fmt.Sprintf("Content-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
 		response := okStatusLine + responseHeadersAndBody
 		conn.Write([]byte(response))
@@ -64,8 +60,6 @@ func handleConnection(conn net.Conn) {
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 	}
 	fmt.Println("Sent response")
-	conn.Close()
-	fmt.Println("Connection closed")
 }
 
 func main() {
@@ -92,6 +86,7 @@ func main() {
 			break
 		}
 		fmt.Println("Connection accepted")
-		handleConnection(conn)
+		go handleConnection(conn)
+		fmt.Println("Connection handled")
 	}
 }
