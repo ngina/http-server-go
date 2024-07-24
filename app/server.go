@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -55,6 +57,29 @@ func handleConnection(conn net.Conn) {
 		responseHeadersAndBody := fmt.Sprintf("Content-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
 		response := okStatusLine + responseHeadersAndBody
 		conn.Write([]byte(response))
+
+	} else if strings.HasPrefix(path, "/files") {
+		filename := strings.Split(path[1:], "/")[1]
+		fmt.Printf("Received file: %s\n", filename)
+
+		file, err := os.Open(filepath.Join("/tmp/data/codecrafters.io/http-server-tester", filename))
+		if err != nil {
+			if os.IsNotExist(err) {
+				fmt.Printf("File with name [%s] not found", filename)
+				conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+			}
+			log.Fatal(err)
+		}
+		fmt.Printf("Opened file: %s\n", filename)
+
+		data := make([]byte, 100)
+		count, err := file.Read(data)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("read %d bytes: %q\n", count, data[:count])
+		responseHeadersAndBody := fmt.Sprintf("Content-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", count, data[:count])
+		conn.Write([]byte(okStatusLine + responseHeadersAndBody))
 
 	} else {
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
