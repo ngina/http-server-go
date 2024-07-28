@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+const okStatusLine = "HTTP/1.1 200 OK\r\n"
+
 func handleConnection(conn net.Conn) {
 	// Create a buffer to hold incoming requests
 	request := make([]byte, 1024)
@@ -27,7 +29,7 @@ func handleConnection(conn net.Conn) {
 	fmt.Println("Received request:", string(request[:readBytes]))
 
 	// Get path and respond with 200 OK or 404 Not Found if path is "/"
-	const okStatusLine = "HTTP/1.1 200 OK\r\n"
+	method := strings.Split(string(request[:readBytes]), " ")[0]
 	path := strings.Split(string(request[:readBytes]), " ")[1]
 	if path == "/" {
 		headers := "\r\n"
@@ -58,7 +60,7 @@ func handleConnection(conn net.Conn) {
 		response := okStatusLine + responseHeadersAndBody
 		conn.Write([]byte(response))
 
-	} else if strings.HasPrefix(path, "/files") {
+	} else if method == "GET" && strings.HasPrefix(path, "/files") {
 		if len(os.Args) < 3 {
 			log.Fatal("Usage: ./your_program.sh --directory <directory>")
 		}
@@ -87,6 +89,33 @@ func handleConnection(conn net.Conn) {
 		fmt.Printf("read %d bytes: %q\n", count, data[:count])
 		responseHeadersAndBody := fmt.Sprintf("Content-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", count, data[:count])
 		conn.Write([]byte(okStatusLine + responseHeadersAndBody))
+
+	} else if method == "POST" && strings.HasPrefix(path, "/files") {
+		if len(os.Args) < 3 {
+			log.Fatal("Usage: ./your_program.sh --directory <directory>")
+		}
+		dir := os.Args[2]
+		filename := strings.Split(path[1:], "/")[1]
+		fmt.Printf("Received dir %s and file: %s\n", dir, filename)
+		filepath := filepath.Join(dir, filename)
+
+		file, err := os.Create(filepath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Created file: %s\n", file.Name())
+
+		// write post data to file
+		requestParameters := strings.Split(string(request[:readBytes]), "\r\n")
+		fmt.Println("Request parameters: ", requestParameters)
+		body := requestParameters[len(requestParameters)-1]
+		fmt.Println("Body: ", body)
+		_, err = file.WriteString(body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Wrote to file: %s\n", file.Name())
+		conn.Write([]byte("HTTP/1.1 201 Created\r\n\r\n"))
 
 	} else {
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
