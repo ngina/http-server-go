@@ -59,10 +59,17 @@ func handleConnection(conn net.Conn) {
 		conn.Write([]byte(response))
 
 	} else if strings.HasPrefix(path, "/files") {
-		filename := strings.Split(path[1:], "/")[1]
-		fmt.Printf("Received file: %s\n", filename)
+		if len(os.Args) < 3 {
+			log.Fatal("Usage: ./your_program.sh --directory <directory>")
+		}
+		dir := os.Args[2]
 
-		file, err := os.Open(filepath.Join("/tmp/data/codecrafters.io/http-server-tester", filename))
+		filename := strings.Split(path[1:], "/")[1]
+		fmt.Printf("Received dir %s and file: %s\n", dir, filename)
+		filepath := filepath.Join(dir, filename)
+		fmt.Printf("Opening file: %#v\n", filepath)
+
+		file, err := os.Open(filepath)
 		if err != nil {
 			if os.IsNotExist(err) {
 				fmt.Printf("File with name [%s] not found", filename)
@@ -70,7 +77,7 @@ func handleConnection(conn net.Conn) {
 			}
 			log.Fatal(err)
 		}
-		fmt.Printf("Opened file: %s\n", filename)
+		fmt.Printf("Opened file: %s\n", filepath)
 
 		data := make([]byte, 100)
 		count, err := file.Read(data)
@@ -88,7 +95,6 @@ func handleConnection(conn net.Conn) {
 }
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
 
 	// Create listener
